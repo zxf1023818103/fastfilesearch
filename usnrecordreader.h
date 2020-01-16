@@ -1,15 +1,9 @@
 #pragma once
 
-#include <tchar.h>
-#include <string>
-#include <vector>
 #include <Windows.h>
+#include "types.h"
 
 namespace ffs {
-
-    using String = std::basic_string<TCHAR>;
-
-    using Strings = std::vector<String>;
 
     /// 获取所有磁盘路径
     Strings GetLogicalDrives() {
@@ -81,7 +75,7 @@ namespace ffs {
     /// USN 日志读取类
     class UsnRecordReader {
     private:
-        static const size_t BUFFER_SIZE = 4096;
+        static const size_t BUFFER_SIZE = 65536;
 
     private:
         HANDLE handle;
@@ -172,7 +166,13 @@ namespace ffs {
                 record = (PUSN_RECORD_V2)(((PUCHAR)buffer) + sizeof(USN));
                 
                 readData.StartUsn = *(USN*)buffer;
+
+                return GetNext();
             }
+        }
+
+        ~UsnRecordReader() {
+            CloseHandle(handle);
         }
     };
     

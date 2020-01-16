@@ -20,7 +20,13 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Util.h">
+    <ClInclude Include="usnrecordreader.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="types.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="usnrecorddao.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

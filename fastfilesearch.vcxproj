@@ -150,6 +150,8 @@
     <ClCompile Include="fastfilesearch.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="types.h" />
+    <ClInclude Include="usnrecorddao.h" />
     <ClInclude Include="usnrecordreader.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
