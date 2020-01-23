@@ -24,7 +24,7 @@ namespace ffs {
 
         DWORD bytesLeft;
 
-        CHAR *buffer;
+        CHAR* buffer;
 
         FileBasedBuffer fileBasedBuffer;
 
@@ -34,7 +34,7 @@ namespace ffs {
         UsnRecordReader(HANDLE handle) {
             this->handle = handle;
         }
-        
+
         /// 获取上一次操作的错误信息
         String GetErrorMessage() {
             return ffs::GetErrorMessage(lastError);
@@ -47,6 +47,9 @@ namespace ffs {
 
         /// 进行初始化操作
         bool Initialize() {
+            if (init) {
+                return true;
+            }
 
             DWORD returnedBytes;
 
@@ -110,7 +113,7 @@ namespace ffs {
                 bytesLeft -= sizeof(USN);
 
                 record = (PUSN_RECORD_V2)(((PUCHAR)buffer) + sizeof(USN));
-                
+
                 readData.StartUsn = *(USN*)buffer;
 
                 if (bytesLeft != 0) {
@@ -126,5 +129,5 @@ namespace ffs {
             ::CloseHandle(handle);
         }
     };
-    
+
 } // namespace ffs

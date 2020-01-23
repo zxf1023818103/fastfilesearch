@@ -95,27 +95,28 @@ namespace ffs {
         }
 
         bool Initialize() {
-            if (!init) {
-
-                TCHAR temporalFilePath[MAX_PATH + 1];
-
-                TCHAR temporalFilePathName[MAX_PATH + 1];
-
-                TRYWINAPI(::GetTempPath(sizeof temporalFilePath / sizeof(TCHAR), temporalFilePath));
-
-                TRYWINAPI(::GetTempFileName(temporalFilePath, TEXT("FFS"), 0, temporalFilePathName));
-
-                TRYWINAPI((temporalFileHandle = ::CreateFile(
-                    temporalFilePathName,
-                    GENERIC_READ | GENERIC_WRITE,
-                    0,
-                    nullptr,
-                    OPEN_EXISTING,
-                    FILE_FLAG_DELETE_ON_CLOSE | FILE_ATTRIBUTE_TEMPORARY,
-                    nullptr)) != INVALID_HANDLE_VALUE);
-
-                init = true;
+            if (init) {
+                return true;
             }
+
+            TCHAR temporalFilePath[MAX_PATH + 1];
+
+            TCHAR temporalFilePathName[MAX_PATH + 1];
+
+            TRYWINAPI(::GetTempPath(sizeof temporalFilePath / sizeof(TCHAR), temporalFilePath));
+
+            TRYWINAPI(::GetTempFileName(temporalFilePath, TEXT("FFS"), 0, temporalFilePathName));
+
+            TRYWINAPI((temporalFileHandle = ::CreateFile(
+                temporalFilePathName,
+                GENERIC_READ | GENERIC_WRITE,
+                0,
+                nullptr,
+                OPEN_EXISTING,
+                FILE_FLAG_DELETE_ON_CLOSE | FILE_ATTRIBUTE_TEMPORARY,
+                nullptr)) != INVALID_HANDLE_VALUE);
+
+            init = true;
 
             return true;
         }
@@ -214,7 +215,7 @@ namespace ffs {
                 lastError = ::GetLastError();
                 return false;
             }
-            
+
             bool privilegeEnabled = false;
             for (DWORD i = 0; i < privileges->PrivilegeCount; i++) {
                 PLUID_AND_ATTRIBUTES luidAndAttributes = privileges->Privileges + i;
@@ -238,7 +239,7 @@ namespace ffs {
                     return false;
                 }
             }
-            
+
             size_t newBytesCapacity = bytesSize / allocationGranularity * allocationGranularity;
             if (newBytesCapacity == 0) {
                 newBytesCapacity += allocationGranularity;

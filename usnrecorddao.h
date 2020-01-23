@@ -140,7 +140,7 @@ namespace ffs {
 
         /// 将 USN 记录直接写入数据库
         bool SaveDirect(PUSN_RECORD_V2 record) {
-            
+
             SQLLEN bytesWritten[10] = { 0 };
 
             TRYODBC(statement,
@@ -208,7 +208,7 @@ namespace ffs {
 
             size_t appendFileNameRecordBufferSize = sizeof(SQLLEN) + record->FileNameLength + sizeof(WCHAR);
             size_t appendUsnRecordBufferSize = sizeof(UsnRecord);
-            
+
             size_t newFileNameRecordBufferSize = oldFileNameRecordBufferSize + appendFileNameRecordBufferSize;
             size_t newUsnRecordBufferSize = oldUsnRecordBufferSize + appendUsnRecordBufferSize;
 
@@ -229,7 +229,7 @@ namespace ffs {
             lastFileNameRecord->fileName[lastFileNameRecord->fileNameLength / sizeof(WCHAR)] = 0;
             //::OutputDebugString(lastFileNameRecord->fileName);
             //::OutputDebugString(TEXT("\r\n"));
-            
+
             lastUsnRecord = (UsnRecord*)((PBYTE)usnRecordBuffer.GetBuffer() + oldUsnRecordBufferSize);
             lastUsnRecord->fileNameLengthOrIndicator = SQL_LEN_DATA_AT_EXEC(record->FileNameLength);
             lastUsnRecord->fileNameRecordOffset = oldFileNameRecordBufferSize;
@@ -247,6 +247,14 @@ namespace ffs {
         }
 
         bool Initialize() {
+            if (init) {
+                return true;
+            }
+
+            fileNameRecordBuffer.SetBaseAddressChangeable(true);
+
+            usnRecordBuffer.SetBaseAddressChangeable(true);
+
             SQLRETURN ret;
             ret = ::SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HENV, &environment);
             if (ret == SQL_ERROR) {
@@ -268,7 +276,7 @@ namespace ffs {
             TRYODBC(connection,
                 SQL_HANDLE_DBC,
                 ::SQLConnect(connection,
-                    (SQLTCHAR*)connectionString.c_str(),
+                (SQLTCHAR*)connectionString.c_str(),
                     SQL_NTS,
                     nullptr,
                     SQL_NULL_DATA,
@@ -304,6 +312,7 @@ namespace ffs {
                 ::SQLExecDirect(bulkStatement, sqlQueryUsnRecord, SQL_NTS));
 
             init = true;
+
             return true;
         }
 
@@ -344,7 +353,7 @@ namespace ffs {
                 TRYODBC(bulkStatement,
                     SQL_HANDLE_STMT,
                     ::SQLBindCol(bulkStatement, 1, SQL_C_UBIGINT, &usnRecords[0].fileReferenceNumber, 0, &usnRecords[0].bytesWritten));
-                
+
                 TRYODBC(bulkStatement,
                     SQL_HANDLE_STMT,
                     ::SQLBindCol(bulkStatement, 2, SQL_C_UBIGINT, &usnRecords[0].parentFileReferenceNumber, 0, &usnRecords[0].bytesWritten));
@@ -386,7 +395,7 @@ namespace ffs {
                 while (true) {
                     uncommits--;
 
-                    size_t *fileNameRecordOffset;
+                    size_t* fileNameRecordOffset;
 
                     TRYODBC(bulkStatement,
                         SQL_HANDLE_STMT,
@@ -396,7 +405,7 @@ namespace ffs {
                     }
 
                     FileNameRecord* fileNameRecord = (FileNameRecord*)((PBYTE)fileNameRecordBuffer.GetBuffer() + *fileNameRecordOffset);
-                    
+
                     TRYODBC(bulkStatement,
                         SQL_HANDLE_STMT,
                         ::SQLPutData(bulkStatement, fileNameRecord->fileName, fileNameRecord->fileNameLength));
@@ -405,7 +414,7 @@ namespace ffs {
 
             return true;
         }
-        
+
         bool IsAutoCommit() {
             if (!init) {
                 Initialize();
