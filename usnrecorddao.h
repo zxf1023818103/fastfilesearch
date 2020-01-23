@@ -346,6 +346,10 @@ namespace ffs {
 
                 UsnRecord* usnRecords = (UsnRecord*)usnRecordBuffer.GetBuffer();
 
+                TRYODBC(connection,
+                    SQL_HANDLE_DBC,
+                    ::SQLSetConnectAttr(connection, SQL_ATTR_AUTOCOMMIT, (SQLPOINTER)SQL_AUTOCOMMIT_OFF, 0));
+
                 TRYODBC(bulkStatement,
                     SQL_HANDLE_STMT,
                     ::SQLSetStmtAttr(bulkStatement, SQL_ATTR_ROW_ARRAY_SIZE, (SQLPOINTER)(usnRecordBuffer.GetBufferSize() / sizeof(UsnRecord)), 0));
@@ -410,6 +414,14 @@ namespace ffs {
                         SQL_HANDLE_STMT,
                         ::SQLPutData(bulkStatement, fileNameRecord->fileName, fileNameRecord->fileNameLength));
                 }
+
+                TRYODBC(connection,
+                    SQL_HANDLE_DBC,
+                    ::SQLEndTran(SQL_HANDLE_DBC, connection, SQL_COMMIT));
+
+                TRYODBC(connection,
+                    SQL_HANDLE_DBC,
+                    ::SQLSetConnectAttr(connection, SQL_ATTR_AUTOCOMMIT, (SQLPOINTER)SQL_AUTOCOMMIT_ON, 0));
             }
 
             return true;
