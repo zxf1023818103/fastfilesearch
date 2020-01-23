@@ -2,7 +2,7 @@
 #include "usnrecorddao.h"
 
 int main() {
-    ffs::UsnRecordDao* dao = new ffs::UsnRecordDao(TEXT("dsn=fastfilesearch"));
+    ffs::UsnRecordDao* dao = new ffs::UsnRecordDao(TEXT("fastfilesearch"));
     ffs::Strings logicalDriveStrings = ffs::GetLogicalDrives();
     for (ffs::String drive : logicalDriveStrings) {
         if (ffs::IsDriveSupportUsnJournal(drive)) {
@@ -11,13 +11,18 @@ int main() {
             PUSN_RECORD_V2 record;
             reader->Initialize();
             reader->GetNext();
-            int i;
-            for (i = 0; ; i++) {
+            dao->SetAutoCommit(false);
+            for (;;) {
                 record = reader->GetNext();
-                //printf("%.*S\r\n", record->FileNameLength / 2, record->FileName);
-                dao->Save(record);
+                if (record == nullptr) {
+                    OutputDebugString(reader->GetErrorMessage().c_str());
+                    break;
+                }
+                else {
+                    dao->Save(record);
+                }
             }
-            _tprintf(TEXT("%s: %d record(s) written to database.\n"), drive.c_str(), i);
+            dao->Commit();
         }
     }
     return 0;

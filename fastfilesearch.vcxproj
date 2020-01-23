@@ -150,7 +150,8 @@
     <ClCompile Include="fastfilesearch.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="types.h" />
+    <ClInclude Include="filebasedbuffer.h" />
+    <ClInclude Include="utils.h" />
     <ClInclude Include="usnrecorddao.h" />
     <ClInclude Include="usnrecordreader.h" />
   </ItemGroup>

@@ -23,10 +23,13 @@
     <ClInclude Include="usnrecordreader.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="types.h">
+    <ClInclude Include="usnrecorddao.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="usnrecorddao.h">
+    <ClInclude Include="utils.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="filebasedbuffer.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
