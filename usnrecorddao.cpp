@@ -1,10 +1,7 @@
-#pragma once
-
 #include <Windows.h>
 #include <sql.h>
 #include <sqlext.h>
-#include "utils.h"
-#include "filebasedbuffer.h"
+#include "fastfilesearch.h"
 
 #define TRYODBC(_handle, _handleType, _statement) { \
             int _line = __LINE__; \
@@ -52,11 +49,13 @@ namespace ffs {
     };
 
     /// USN 日志 DAO 类
-    class UsnRecordDao {
+    class UsnRecordDao : public IUsnRecordDao {
     private:
         bool init = false;
 
         bool autoCommit = true;
+
+        ErrnoT lastError;
 
         size_t uncommits;
 
@@ -80,7 +79,7 @@ namespace ffs {
 
         SQLTCHAR* sqlQueryUsnRecord = (SQLTCHAR*)TEXT("select top 0 * from usn_record");
 
-        FileBasedBuffer fileNameRecordBuffer, usnRecordBuffer;
+        IBuffer *fileNameRecordBuffer, *usnRecordBuffer;
 
         FileNameRecord* lastFileNameRecord;
 
@@ -203,8 +202,8 @@ namespace ffs {
         /// 将 USN 记录提交任务附加到提交队列
         bool SaveBulk(PUSN_RECORD_V2 record) {
 
-            size_t oldFileNameRecordBufferSize = fileNameRecordBuffer.GetBufferSize();
-            size_t oldUsnRecordBufferSize = usnRecordBuffer.GetBufferSize();
+            size_t oldFileNameRecordBufferSize = fileNameRecordBuffer->GetSizeBytes();
+            size_t oldUsnRecordBufferSize = usnRecordBuffer->GetSizeBytes();
 
             size_t appendFileNameRecordBufferSize = sizeof(SQLLEN) + record->FileNameLength + sizeof(WCHAR);
             size_t appendUsnRecordBufferSize = sizeof(UsnRecord);
@@ -212,17 +211,18 @@ namespace ffs {
             size_t newFileNameRecordBufferSize = oldFileNameRecordBufferSize + appendFileNameRecordBufferSize;
             size_t newUsnRecordBufferSize = oldUsnRecordBufferSize + appendUsnRecordBufferSize;
 
-            if (!fileNameRecordBuffer.SetBufferSize(newFileNameRecordBufferSize) || !usnRecordBuffer.SetBufferSize(newUsnRecordBufferSize)) {
+            if (!fileNameRecordBuffer->SetSizeBytes(newFileNameRecordBufferSize) || !usnRecordBuffer->SetSizeBytes(newUsnRecordBufferSize)) {
                 if (!Commit()) {
+                    lastError = fileNameRecordBuffer->GetLastError();
                     return false;
                 }
-                fileNameRecordBuffer.SetBufferSize(appendFileNameRecordBufferSize);
-                usnRecordBuffer.SetBufferSize(appendUsnRecordBufferSize);
+                fileNameRecordBuffer->SetSizeBytes(appendFileNameRecordBufferSize);
+                usnRecordBuffer->SetSizeBytes(appendUsnRecordBufferSize);
                 oldFileNameRecordBufferSize = 0;
                 oldUsnRecordBufferSize = 0;
             }
 
-            lastFileNameRecord = (FileNameRecord*)((PBYTE)fileNameRecordBuffer.GetBuffer() + oldFileNameRecordBufferSize);
+            lastFileNameRecord = (FileNameRecord*)((PBYTE)fileNameRecordBuffer->GetBuffer() + oldFileNameRecordBufferSize);
             SQLLEN fileNameLength = record->FileNameLength;
             lastFileNameRecord->fileNameLength = record->FileNameLength;
             ::CopyMemory(lastFileNameRecord->fileName, record->FileName, record->FileNameLength);
@@ -230,7 +230,7 @@ namespace ffs {
             //::OutputDebugString(lastFileNameRecord->fileName);
             //::OutputDebugString(TEXT("\r\n"));
 
-            lastUsnRecord = (UsnRecord*)((PBYTE)usnRecordBuffer.GetBuffer() + oldUsnRecordBufferSize);
+            lastUsnRecord = (UsnRecord*)((PBYTE)usnRecordBuffer->GetBuffer() + oldUsnRecordBufferSize);
             lastUsnRecord->fileNameLengthOrIndicator = SQL_LEN_DATA_AT_EXEC(record->FileNameLength);
             lastUsnRecord->fileNameRecordOffset = oldFileNameRecordBufferSize;
             lastUsnRecord->bytesWritten = 0;
@@ -246,14 +246,32 @@ namespace ffs {
             this->connectionString = connectionString;
         }
 
+        ErrnoT GetLastError() {
+            return lastError;
+        }
+
+        String GetLastErrorMessage() {
+            return ffs::GetLastErrorMessage(lastError);
+        }
+
         bool Initialize() {
             if (init) {
                 return true;
             }
 
-            fileNameRecordBuffer.SetBaseAddressChangeable(true);
+            lastError = CreateBuffer(FileBasedBuffer, &fileNameRecordBuffer);
+            if (lastError != ERROR_SUCCESS) {
+                return false;
+            }
 
-            usnRecordBuffer.SetBaseAddressChangeable(true);
+            lastError = CreateBuffer(FileBasedBuffer, &usnRecordBuffer);
+            if (lastError != ERROR_SUCCESS) {
+                return false;
+            }
+
+            fileNameRecordBuffer->SetBaseAddressChangeable(true);
+
+            usnRecordBuffer->SetBaseAddressChangeable(true);
 
             SQLRETURN ret;
             ret = ::SQLAllocHandle(SQL_HANDLE_ENV, SQL_NULL_HENV, &environment);
@@ -344,7 +362,7 @@ namespace ffs {
                 commitLoop++;
                 commitNumber = uncommits;
 
-                UsnRecord* usnRecords = (UsnRecord*)usnRecordBuffer.GetBuffer();
+                UsnRecord* usnRecords = (UsnRecord*)usnRecordBuffer->GetBuffer();
 
                 TRYODBC(connection,
                     SQL_HANDLE_DBC,
@@ -352,7 +370,7 @@ namespace ffs {
 
                 TRYODBC(bulkStatement,
                     SQL_HANDLE_STMT,
-                    ::SQLSetStmtAttr(bulkStatement, SQL_ATTR_ROW_ARRAY_SIZE, (SQLPOINTER)(usnRecordBuffer.GetBufferSize() / sizeof(UsnRecord)), 0));
+                    ::SQLSetStmtAttr(bulkStatement, SQL_ATTR_ROW_ARRAY_SIZE, (SQLPOINTER)(usnRecordBuffer->GetSizeBytes() / sizeof(UsnRecord)), 0));
 
                 TRYODBC(bulkStatement,
                     SQL_HANDLE_STMT,
@@ -384,7 +402,7 @@ namespace ffs {
 
                 TRYODBC(bulkStatement,
                     SQL_HANDLE_STMT,
-                    ::SQLBindCol(bulkStatement, 8, SQL_C_WCHAR, &usnRecords[0].fileNameRecordOffset, fileNameRecordBuffer.GetBufferCapacity(), &usnRecords[0].fileNameLengthOrIndicator));
+                    ::SQLBindCol(bulkStatement, 8, SQL_C_WCHAR, &usnRecords[0].fileNameRecordOffset, fileNameRecordBuffer->GetCapacityBytes(), &usnRecords[0].fileNameLengthOrIndicator));
 
                 TRYODBC(bulkStatement,
                     SQL_HANDLE_STMT,
@@ -408,7 +426,7 @@ namespace ffs {
                         break;
                     }
 
-                    FileNameRecord* fileNameRecord = (FileNameRecord*)((PBYTE)fileNameRecordBuffer.GetBuffer() + *fileNameRecordOffset);
+                    FileNameRecord* fileNameRecord = (FileNameRecord*)((PBYTE)fileNameRecordBuffer->GetBuffer() + *fileNameRecordOffset);
 
                     TRYODBC(bulkStatement,
                         SQL_HANDLE_STMT,
@@ -445,15 +463,15 @@ namespace ffs {
             return true;
         }
 
-        Strings GetErrorMessages() {
+        Strings GetOdbcErrorMessages() {
             return errorMessages;
         }
 
-        Strings GetSqlStates() {
+        Strings GetOdbcSqlStates() {
             return sqlStates;
         }
 
-        std::vector<SQLINTEGER> GetNativeErrors() {
+        std::vector<SQLINTEGER> GetOdbcNativeErrors() {
             return nativeErrors;
         }
 
@@ -465,6 +483,20 @@ namespace ffs {
             ::SQLFreeHandle(SQL_HANDLE_ENV, environment);
         }
     };
+
+    ErrnoT CreateUsnRecordDao(String connectionString, IUsnRecordDao** ppDao) {
+        UsnRecordDao* dao= new UsnRecordDao(connectionString);
+        bool success = dao->Initialize();
+        ErrnoT lastError = dao->GetLastError();
+        if (success) {
+            *ppDao = dao;
+        }
+        else {
+            *ppDao = nullptr;
+            delete dao;
+        }
+        return lastError;
+    }
 
 } // namespace ffs
 

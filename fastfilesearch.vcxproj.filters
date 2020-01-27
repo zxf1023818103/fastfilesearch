@@ -18,18 +18,21 @@
     <ClCompile Include="fastfilesearch.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="filebasedbuffer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="logger.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="usnrecorddao.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="usnrecordreader.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="usnrecordreader.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="usnrecorddao.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="utils.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="filebasedbuffer.h">
+    <ClInclude Include="fastfilesearch.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

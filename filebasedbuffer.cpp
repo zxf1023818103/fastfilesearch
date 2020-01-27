@@ -1,7 +1,5 @@
-#pragma once
-
-#include "utils.h"
 #include <Windows.h>
+#include "fastfilesearch.h"
 
 #define TRYWINAPI(result) { \
             if (!(result)) { \
@@ -25,8 +23,14 @@
 
 namespace ffs {
 
+    DWORD GetAllocationGranularity() {
+        SYSTEM_INFO info;
+        ::GetSystemInfo(&info);
+        return info.dwAllocationGranularity;
+    }
+
     /// 基于临时文件的缓冲区类
-    class FileBasedBuffer {
+    class FileBasedBuffer : public IBuffer {
     private:
         bool init = false;
 
@@ -44,12 +48,10 @@ namespace ffs {
 
         DWORD lastError = ERROR_SUCCESS;
 
-        void** bufferPointer;
-
         DWORD allocationGranularity = ffs::GetAllocationGranularity();
 
     private:
-        bool SetBytesCapacity(size_t newBytesCapacity) {
+        bool SetCapacityBytes(size_t newBytesCapacity) {
             if (buffer != nullptr) {
                 TRYWINAPI(::UnmapViewOfFile(buffer));
             }
@@ -86,11 +88,11 @@ namespace ffs {
         FileBasedBuffer() {
         }
 
-        String GetErrorMessage() {
-            return ffs::GetErrorMessage(lastError);
+        String GetLastErrorMessage() {
+            return ffs::GetLastErrorMessage(lastError);
         }
 
-        DWORD GetLastError() {
+        ErrnoT GetLastError() {
             return lastError;
         }
 
@@ -133,17 +135,7 @@ namespace ffs {
             return buffer;
         }
 
-        bool SetBufferPointer(void** bufferPointer) {
-            INIT();
-
-            *bufferPointer = buffer;
-
-            this->bufferPointer = bufferPointer;
-
-            return true;
-        }
-
-        bool SetBufferSize(size_t bytesSize) {
+        bool SetSizeBytes(size_t bytesSize) {
             INIT();
 
             size_t newBytesCapacity = bytesSize / allocationGranularity * allocationGranularity;
@@ -153,13 +145,9 @@ namespace ffs {
             }
 
             if (newBytesCapacity > bytesCapacity) {
-                if (!SetBytesCapacity(newBytesCapacity)) {
+                if (!SetCapacityBytes(newBytesCapacity)) {
                     return false;
                 }
-            }
-
-            if (bufferPointer != nullptr) {
-                *bufferPointer = buffer;
             }
 
             this->bytesSize = bytesSize;
@@ -167,13 +155,13 @@ namespace ffs {
             return true;
         }
 
-        size_t GetBufferSize() {
+        size_t GetSizeBytes() {
             Initialize();
 
             return bytesSize;
         }
 
-        size_t GetBufferCapacity() {
+        size_t GetCapacityBytes() {
             Initialize();
 
             return bytesCapacity;
@@ -185,10 +173,13 @@ namespace ffs {
             return baseAddressChangeable;
         }
 
-        void SetBaseAddressChangeable(bool baseAddressChangeable) {
-            Initialize();
+        bool SetBaseAddressChangeable(bool baseAddressChangeable) {
+            if (!Initialize()) {
+                return false;
+            }
 
             this->baseAddressChangeable = baseAddressChangeable;
+            return true;
         }
 
         bool Trim() {
@@ -265,7 +256,7 @@ namespace ffs {
                 return false;
             }
 
-            return SetBytesCapacity(newBytesCapacity);
+            return SetCapacityBytes(newBytesCapacity);
         }
 
         ~FileBasedBuffer() {
@@ -280,5 +271,28 @@ namespace ffs {
             }
         }
     };
+
+    ErrnoT CreateBuffer(BufferType type, IBuffer** ppBuffer) {
+        IBuffer* buffer;
+        switch (type) {
+        case FileBasedBuffer:
+            buffer = new class FileBasedBuffer();
+            break;
+        default:
+            return ERROR_UNSUPPORTED_TYPE;
+            break;
+        }
+
+        bool success = buffer->Initialize();
+        ErrnoT lastError = buffer->GetLastError();
+        if (success) {
+            *ppBuffer = buffer;
+        }
+        else {
+            *ppBuffer = nullptr;
+            delete buffer;
+        }
+        return lastError;
+    }
 
 } // namespace ffs

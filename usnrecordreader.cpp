@@ -1,13 +1,55 @@
-#pragma once
-
 #include <Windows.h>
-#include "utils.h"
-#include "filebasedbuffer.h"
+#include "fastfilesearch.h"
 
 namespace ffs {
 
+    Strings GetLogicalDrives() {
+        DWORD size = ::GetLogicalDriveStringsW(0, nullptr);
+        TCHAR* buffer = new TCHAR[size];
+        ::GetLogicalDriveStrings(size, buffer);
+        Strings result;
+        String string;
+        for (DWORD i = 0; i < size; i++) {
+            if (buffer[i] != 0) {
+                string += buffer[i];
+            }
+            else if (!string.empty()) {
+                result.emplace_back(string);
+                string.clear();
+            }
+        }
+
+        delete[] buffer;
+        return result;
+    }
+
+    String GetFileSystemName(String driveString) {
+        TCHAR buffer[MAX_PATH + 1];
+        ::GetVolumeInformation(driveString.c_str(), nullptr, 0, nullptr, nullptr, nullptr, buffer, sizeof buffer / sizeof(TCHAR));
+        return String(buffer);
+    }
+
+    bool IsDriveSupportUsnJournal(String driveString) {
+        String fs = GetFileSystemName(driveString);
+        return fs == TEXT("NTFS") || fs == TEXT("ReFS");
+    }
+
+    /// 根据磁盘路径打开磁盘返回句柄
+    HANDLE OpenDrive(String driveString) {
+        TCHAR path[] = TEXT("\\\\.\\X:");
+        path[4] = driveString[0];
+        return CreateFile(
+            path,
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            nullptr,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            nullptr);
+    }
+
     /// USN 日志读取类
-    class UsnRecordReader {
+    class UsnRecordReader : public IUsnRecordReader {
     private:
         static const size_t BUFFER_SIZE = 65536;
 
@@ -26,7 +68,7 @@ namespace ffs {
 
         CHAR* buffer;
 
-        FileBasedBuffer fileBasedBuffer;
+        IBuffer* fileBasedBuffer;
 
         bool init = false;
 
@@ -36,12 +78,14 @@ namespace ffs {
         }
 
         /// 获取上一次操作的错误信息
-        String GetErrorMessage() {
-            return ffs::GetErrorMessage(lastError);
+        String GetLastErrorMessage() {
+            Initialize();
+            return ffs::GetLastErrorMessage(lastError);
         }
 
         /// 获取上一次操作的错误代码
-        DWORD GetLastError() {
+        ErrnoT GetLastError() {
+            Initialize();
             return lastError;
         }
 
@@ -49,6 +93,11 @@ namespace ffs {
         bool Initialize() {
             if (init) {
                 return true;
+            }
+
+            lastError = CreateBuffer(FileBasedBuffer, &fileBasedBuffer);
+            if (lastError != ERROR_SUCCESS) {
+                return false;
             }
 
             DWORD returnedBytes;
@@ -63,8 +112,8 @@ namespace ffs {
                 &returnedBytes,
                 NULL);
 
-            fileBasedBuffer.SetBufferSize(BUFFER_SIZE);
-            buffer = (PCHAR)fileBasedBuffer.GetBuffer();
+            fileBasedBuffer->SetSizeBytes(BUFFER_SIZE);
+            buffer = (PCHAR)fileBasedBuffer->GetBuffer();
 
             if (result == TRUE) {
                 init = true;
@@ -129,5 +178,19 @@ namespace ffs {
             ::CloseHandle(handle);
         }
     };
+
+    ErrnoT CreateUsnRecordReader(HANDLE handle, IUsnRecordReader** ppReader) {
+        UsnRecordReader* reader = new UsnRecordReader(handle);
+        bool success = reader->Initialize();
+        ErrnoT lastError = reader->GetLastError();
+        if (success) {
+            *ppReader = reader;
+        }
+        else {
+            *ppReader = nullptr;
+            delete reader;
+        }
+        return lastError;
+    }
 
 } // namespace ffs

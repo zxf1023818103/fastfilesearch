@@ -148,12 +148,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="fastfilesearch.cpp" />
+    <ClCompile Include="filebasedbuffer.cpp" />
+    <ClCompile Include="logger.cpp" />
+    <ClCompile Include="usnrecorddao.cpp" />
+    <ClCompile Include="usnrecordreader.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="filebasedbuffer.h" />
-    <ClInclude Include="utils.h" />
-    <ClInclude Include="usnrecorddao.h" />
-    <ClInclude Include="usnrecordreader.h" />
+    <ClInclude Include="fastfilesearch.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
